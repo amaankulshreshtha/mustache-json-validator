@@ -21,7 +21,7 @@ export class MustacheJSONDocumentFormattingProvider implements vscode.DocumentFo
     // Get formatting options
     const formatterOptions = {
       indentSize: options.tabSize,
-      insertFinalNewline: options.insertFinalNewline ?? true,
+      insertFinalNewline: Boolean(options.insertFinalNewline ?? true),
       trimTrailingWhitespace: true,
       insertSpacesAroundMustacheTags: vscode.workspace.getConfiguration("mustacheJsonValidator").get("formatter.spacesAroundTags", false),
     };
