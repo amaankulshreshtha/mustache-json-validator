@@ -1,0 +1,18 @@
+{
+  "users": [
+{{#users}}
+    {
+      "id": {{id}},
+      "name": "{{name}}",
+      "email": "{{email}}",
+      "status": "{{#isActive}}active{{/isActive}}{{^isActive}}inactive{{/isActive}}",
+      "age": {{profile.age}},
+      "location": "{{profile.location}}"
+    }{{#comma}},{{/comma}}
+{{/users}}
+  ],
+  "metadata": {
+    "total": {{totalUsers}},
+    "generated": "{{timestamp}}"
+  }
+}

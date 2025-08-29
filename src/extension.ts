@@ -398,7 +398,10 @@ async function selectContextFile(): Promise<void> {
       await configManager.setContextFile(fileUri[0].fsPath);
       vscode.window.showInformationMessage(`Context file set: ${fileUri[0].fsPath}`);
 
-      // Re-validate open documents with new context
+      // Clear template engine cache to force re-render with new context
+      templateEngine.clearCache();
+
+      // Re-validate ALL open Mustache documents with new context
       await validateOpenDocuments();
     }
   } catch (error) {

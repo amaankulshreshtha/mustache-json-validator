@@ -1,0 +1,28 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "name": "John Doe",
+      "email": "john@example.com",
+      "isActive": true,
+      "profile": {
+        "age": 30,
+        "location": "New York"
+      },
+      "comma": true
+    },
+    {
+      "id": 2,
+      "name": "Jane Smith",
+      "email": "jane@example.com",
+      "isActive": false,
+      "profile": {
+        "age": 25,
+        "location": "San Francisco"
+      },
+      "comma": false
+    }
+  ],
+  "totalUsers": 2,
+  "timestamp": "2025-08-29T10:30:00Z"
+}

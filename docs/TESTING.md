@@ -57,28 +57,21 @@ In the Extension Development Host window:
 
 ## **📝 Create Test Files**
 
-### **Test File 1: `sample.mustache.json`** ✅ Valid Template
+### **Test File 1: `sample.mustache.json`** ✅ Simple Valid Template
 
 ```json
 {
   "users": [
-    {{#users}}
+{{#users}}
     {
       "id": {{id}},
       "name": "{{name}}",
       "email": "{{email}}",
-      {{#isActive}}
-      "status": "active",
-      {{/isActive}}
-      {{^isActive}}
-      "status": "inactive",
-      {{/isActive}}
-      "profile": {
-        "age": {{profile.age}},
-        "location": "{{profile.location}}"
-      }
-    }{{^@last}},{{/@last}}
-    {{/users}}
+      "status": "{{#isActive}}active{{/isActive}}{{^isActive}}inactive{{/isActive}}",
+      "age": {{profile.age}},
+      "location": "{{profile.location}}"
+    }{{#comma}},{{/comma}}
+{{/users}}
   ],
   "metadata": {
     "total": {{totalUsers}},
@@ -100,7 +93,8 @@ In the Extension Development Host window:
       "profile": {
         "age": 30,
         "location": "New York"
-      }
+      },
+      "comma": true
     },
     {
       "id": 2,
@@ -110,7 +104,8 @@ In the Extension Development Host window:
       "profile": {
         "age": 25,
         "location": "San Francisco"
-      }
+      },
+      "comma": false
     }
   ],
   "totalUsers": 2,
