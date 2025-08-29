@@ -28,7 +28,6 @@
   },
   "homepage": "https://github.com/your-username/mustache-json-validator#readme",
   "activationEvents": [
-    "onLanguage:mustache-json",
     "onLanguage:mustache",
     "onLanguage:json"
   ],
@@ -213,6 +212,20 @@
           "minimum": 0,
           "maximum": 5000,
           "description": "Delay in milliseconds before triggering validation after typing stops",
+          "scope": "resource"
+        },
+        "mustacheJsonValidator.formatter.spacesAroundTags": {
+          "type": "boolean",
+          "default": false,
+          "description": "Insert spaces around Mustache tags: {{ variable }} vs {{variable}}",
+          "scope": "resource"
+        },
+        "mustacheJsonValidator.formatter.indentSize": {
+          "type": "number",
+          "default": 2,
+          "minimum": 1,
+          "maximum": 8,
+          "description": "Number of spaces for indentation",
           "scope": "resource"
         }
       }
