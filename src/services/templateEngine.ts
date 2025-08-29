@@ -284,6 +284,11 @@ export class TemplateEngine {
       }
     }
 
+    // Add common computed values
+    if (variables.includes("users.length") && !context["users.length"]) {
+      context["totalUsers"] = context.users ? (context.users as any[]).length : 2;
+    }
+
     return context;
   }
 

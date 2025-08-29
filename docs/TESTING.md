@@ -81,7 +81,7 @@ In the Extension Development Host window:
     {{/users}}
   ],
   "metadata": {
-    "total": {{users.length}},
+    "total": {{totalUsers}},
     "generated": "{{timestamp}}"
   }
 }
@@ -113,6 +113,7 @@ In the Extension Development Host window:
       }
     }
   ],
+  "totalUsers": 2,
   "timestamp": "2025-08-29T10:30:00Z"
 }
 ```
