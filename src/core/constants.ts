@@ -23,6 +23,7 @@ export const COMMANDS = {
   PREVIEW: "mustacheJsonValidator.previewJson",
   FORMAT: "mustacheJsonValidator.format",
   SELECT_CONTEXT: "mustacheJsonValidator.selectContext",
+  CLEAR_CONTEXT: "mustacheJsonValidator.clearContext",
   CLEAR_CACHE: "mustacheJsonValidator.clearCache",
   TOGGLE_VALIDATION: "mustacheJsonValidator.toggleValidation",
 } as const;

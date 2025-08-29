@@ -187,6 +187,16 @@ function registerCommands(context: vscode.ExtensionContext): void {
     vscode.window.showInformationMessage(`Real-time validation ${enabled ? "enabled" : "disabled"}`);
   });
 
+  // Clear context file command
+  const clearContextCommand = vscode.commands.registerCommand(COMMANDS.CLEAR_CONTEXT, async () => {
+    await configManager.clearContextFile();
+    templateEngine.clearCache(); // Clear cache to force re-render
+    vscode.window.showInformationMessage("Context file cleared");
+
+    // Re-validate open documents with empty context
+    await validateOpenDocuments();
+  });
+
   // Add to subscriptions
   context.subscriptions.push(
     validateCommand,
@@ -194,7 +204,8 @@ function registerCommands(context: vscode.ExtensionContext): void {
     formatCommand,
     selectContextCommand,
     clearCacheCommand,
-    toggleValidationCommand
+    toggleValidationCommand,
+    clearContextCommand
   );
 }
 

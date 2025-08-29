@@ -96,6 +96,12 @@
         "title": "Toggle Real-time Validation",
         "category": "Mustache JSON",
         "icon": "$(eye)"
+      },
+      {
+        "command": "mustacheJsonValidator.clearContext",
+        "title": "Clear Context File",
+        "category": "Mustache JSON",
+        "icon": "$(trash)"
       }
     ],
     "menus": {
