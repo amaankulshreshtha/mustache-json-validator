@@ -1,0 +1,269 @@
+{
+  "name": "mustache-json-validator",
+  "displayName": "Mustache JSON Validator",
+  "description": "Static analysis and validation for Mustache templates generating JSON",
+  "version": "0.1.0",
+  "publisher": "your-publisher-name",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Formatters"
+  ],
+  "keywords": [
+    "mustache",
+    "json",
+    "template",
+    "validation",
+    "linter"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/mustache-json-validator.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/mustache-json-validator/issues"
+  },
+  "homepage": "https://github.com/your-username/mustache-json-validator#readme",
+  "activationEvents": [
+    "onLanguage:mustache-json",
+    "onLanguage:mustache",
+    "onLanguage:json"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "mustache-json",
+        "aliases": [
+          "Mustache JSON",
+          "mustache-json"
+        ],
+        "extensions": [
+          ".mustache.json",
+          ".mst.json",
+          ".mustache"
+        ],
+        "configuration": "./language-configuration.json",
+        "mimetypes": [
+          "text/x-mustache-json"
+        ]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "mustache-json",
+        "scopeName": "source.mustache.json",
+        "path": "./syntaxes/mustache-json.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "mustacheJsonValidator.validate",
+        "title": "Validate Template",
+        "category": "Mustache JSON",
+        "icon": "$(check)"
+      },
+      {
+        "command": "mustacheJsonValidator.previewJson",
+        "title": "Preview Generated JSON",
+        "category": "Mustache JSON",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "mustacheJsonValidator.format",
+        "title": "Format Template",
+        "category": "Mustache JSON",
+        "icon": "$(symbol-method)"
+      },
+      {
+        "command": "mustacheJsonValidator.selectContext",
+        "title": "Select Context File",
+        "category": "Mustache JSON",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "mustacheJsonValidator.clearCache",
+        "title": "Clear Validation Cache",
+        "category": "Mustache JSON",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "mustacheJsonValidator.toggleValidation",
+        "title": "Toggle Real-time Validation",
+        "category": "Mustache JSON",
+        "icon": "$(eye)"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "mustacheJsonValidator.validate",
+          "when": "editorLangId == mustache-json || resourceExtname == .mustache || resourceExtname == .mst.json",
+          "group": "mustache@1"
+        },
+        {
+          "command": "mustacheJsonValidator.previewJson",
+          "when": "editorLangId == mustache-json || resourceExtname == .mustache || resourceExtname == .mst.json",
+          "group": "mustache@2"
+        },
+        {
+          "command": "mustacheJsonValidator.format",
+          "when": "editorLangId == mustache-json || resourceExtname == .mustache || resourceExtname == .mst.json",
+          "group": "mustache@3"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "mustacheJsonValidator.previewJson",
+          "when": "editorLangId == mustache-json || resourceExtname == .mustache || resourceExtname == .mst.json",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "mustacheJsonValidator.validate",
+          "when": "editorLangId == mustache-json || resourceExtname == .mustache || resourceExtname == .mst.json"
+        },
+        {
+          "command": "mustacheJsonValidator.previewJson",
+          "when": "editorLangId == mustache-json || resourceExtname == .mustache || resourceExtname == .mst.json"
+        },
+        {
+          "command": "mustacheJsonValidator.format",
+          "when": "editorLangId == mustache-json || resourceExtname == .mustache || resourceExtname == .mst.json"
+        },
+        {
+          "command": "mustacheJsonValidator.selectContext"
+        },
+        {
+          "command": "mustacheJsonValidator.clearCache"
+        },
+        {
+          "command": "mustacheJsonValidator.toggleValidation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "mustacheJsonValidator.validate",
+        "key": "ctrl+shift+v",
+        "mac": "cmd+shift+v",
+        "when": "editorLangId == mustache-json || resourceExtname == .mustache"
+      },
+      {
+        "command": "mustacheJsonValidator.previewJson",
+        "key": "ctrl+alt+p",
+        "mac": "cmd+alt+p",
+        "when": "editorLangId == mustache-json || resourceExtname == .mustache"
+      }
+    ],
+    "configuration": {
+      "title": "Mustache JSON Validator",
+      "properties": {
+        "mustacheJsonValidator.enableRealTimeValidation": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable real-time validation as you type",
+          "scope": "resource"
+        },
+        "mustacheJsonValidator.contextFile": {
+          "type": "string",
+          "default": "",
+          "description": "Path to JSON context file for template rendering",
+          "scope": "resource"
+        },
+        "mustacheJsonValidator.validateJsonOutput": {
+          "type": "boolean",
+          "default": true,
+          "description": "Validate that generated JSON has correct syntax",
+          "scope": "resource"
+        },
+        "mustacheJsonValidator.showWarnings": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show warning-level validation messages",
+          "scope": "resource"
+        },
+        "mustacheJsonValidator.showHints": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show hint-level suggestions",
+          "scope": "resource"
+        },
+        "mustacheJsonValidator.autoFormat": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically format templates on save",
+          "scope": "resource"
+        },
+        "mustacheJsonValidator.maxCacheSize": {
+          "type": "number",
+          "default": 100,
+          "minimum": 1,
+          "maximum": 1000,
+          "description": "Maximum number of validation results to cache",
+          "scope": "application"
+        },
+        "mustacheJsonValidator.debounceTime": {
+          "type": "number",
+          "default": 300,
+          "minimum": 0,
+          "maximum": 5000,
+          "description": "Delay in milliseconds before triggering validation after typing stops",
+          "scope": "resource"
+        }
+      }
+    },
+    "jsonValidation": [
+      {
+        "fileMatch": "mustache-context.json",
+        "url": "./schemas/context-schema.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "mustache-json",
+        "path": "./resources/snippets/mustache-json.json"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "16.x",
+    "@types/mocha": "^10.0.1",
+    "@types/mustache": "^4.2.2",
+    "@typescript-eslint/eslint-plugin": "^5.45.0",
+    "@typescript-eslint/parser": "^5.45.0",
+    "@vscode/test-electron": "^2.2.0",
+    "eslint": "^8.28.0",
+    "glob": "^8.0.3",
+    "mocha": "^10.1.0",
+    "typescript": "^4.9.4",
+    "ts-loader": "^9.4.1",
+    "webpack": "^5.75.0",
+    "webpack-cli": "^5.0.0"
+  },
+  "dependencies": {
+    "mustache": "^4.2.0",
+    "jsonlint": "^1.6.3"
+  },
+  "icon": "resources/icons/extension-icon.png",
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  }
+}
