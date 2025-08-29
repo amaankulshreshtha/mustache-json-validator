@@ -87,10 +87,11 @@ export class MustacheSyntaxValidator extends BaseValidator {
       const line = lines[i];
       const lineNumber = i + 1;
 
-      // Find potential malformed patterns
+      // Check for single braces that are NOT part of double braces
+      this.checkSingleBraces(line, lineNumber, errors);
+
+      // Find other malformed patterns
       const malformedPatterns = [
-        // Single brace instead of double
-        { regex: /\{[^{].*?\}/g, message: "Single braces should be double braces: {{...}}" },
         // More than three opening braces
         { regex: /\{{4,}/g, message: "Too many opening braces - use {{ or {{{" },
         // More than three closing braces
@@ -122,6 +123,38 @@ export class MustacheSyntaxValidator extends BaseValidator {
     }
 
     return errors;
+  }
+
+  /**
+   * Check for single braces that should be double braces
+   */
+  private checkSingleBraces(line: string, lineNumber: number, errors: ValidationError[]): void {
+    // Look for single braces that are not part of double braces
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+
+      if (char === "{") {
+        // Check if this is NOT part of {{ (double opening)
+        if (line[i + 1] !== "{") {
+          // Find the closing brace
+          const closingIndex = line.indexOf("}", i);
+          if (closingIndex !== -1 && line[closingIndex + 1] !== "}") {
+            // This is a single brace pair like {something}
+            const content = line.substring(i, closingIndex + 1);
+            errors.push(
+              this.createValidationError(
+                "Single braces should be double braces: {{...}}",
+                lineNumber,
+                i,
+                "error",
+                content.length,
+                ERROR_CODES.MUSTACHE_SYNTAX_ERROR
+              )
+            );
+          }
+        }
+      }
+    }
   }
 
   /**
