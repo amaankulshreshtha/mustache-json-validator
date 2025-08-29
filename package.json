@@ -28,6 +28,7 @@
   },
   "homepage": "https://github.com/your-username/mustache-json-validator#readme",
   "activationEvents": [
+    "onLanguage:mustache-json",
     "onLanguage:mustache",
     "onLanguage:json"
   ],

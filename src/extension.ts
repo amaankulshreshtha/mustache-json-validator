@@ -7,110 +7,131 @@ import {
   MustacheJSONDocumentRangeFormattingProvider,
   MustacheJSONOnTypeFormattingProvider,
 } from "./providers/documentFormattingProvider";
+import { TemplateEngine } from "./services/templateEngine";
+import { ConfigurationManager } from "./core/config";
+import { ExtensionConfig, ValidationResult, DocumentChangeEvent } from "./core/types";
+import { EXTENSION_ID, COMMANDS, FILE_EXTENSIONS, PERFORMANCE_LIMITS } from "./core/constants";
 
 // Global extension state
 let diagnosticsCollection: vscode.DiagnosticCollection;
-let diagnosticsProvider: DiagnosticsProvider;
 let mustacheValidator: MustacheValidator;
 let jsonValidator: JSONValidator;
+let diagnosticsProvider: DiagnosticsProvider;
+let templateEngine: TemplateEngine;
+let configManager: ConfigurationManager;
 
-// Debounce timers for validation
+// Validation debounce timers
 const validationTimers = new Map<string, NodeJS.Timeout>();
 
 /**
  * Extension activation
  */
-export function activate(context: vscode.ExtensionContext) {
-  console.log("🚀 Mustache JSON Validator extension is now active!");
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
+  console.log(`🚀 ${EXTENSION_ID} is activating...`);
 
   try {
     // Initialize core services
-    initializeServices(context);
-
-    // Register document selectors
-    const documentSelector = getDocumentSelector();
-
-    // Register formatting providers
-    registerFormattingProviders(context, documentSelector);
-
-    // Register commands
-    registerCommands(context);
+    await initializeServices(context);
 
     // Register event listeners
     registerEventListeners(context);
 
+    // Register commands
+    registerCommands(context);
+
+    // Register providers
+    registerProviders(context);
+
     // Validate open documents
-    validateOpenDocuments();
+    await validateOpenDocuments();
 
-    console.log("✅ Mustache JSON Validator activated successfully!");
+    console.log(`✅ ${EXTENSION_ID} activated successfully!`);
+
+    // Show welcome message for first-time users
+    showWelcomeMessage(context);
   } catch (error) {
-    console.error("❌ Failed to activate Mustache JSON Validator:", error);
-    vscode.window.showErrorMessage(`Failed to activate extension: ${error}`);
+    console.error(`❌ Failed to activate ${EXTENSION_ID}:`, error);
+    vscode.window.showErrorMessage(
+      `Failed to activate Mustache JSON Validator: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
   }
-}
-
-/**
- * Extension deactivation
- */
-export function deactivate() {
-  console.log("🛑 Mustache JSON Validator is deactivating...");
-
-  // Clear all validation timers
-  for (const timer of validationTimers.values()) {
-    clearTimeout(timer);
-  }
-  validationTimers.clear();
-
-  // Dispose services
-  diagnosticsProvider?.dispose();
-  diagnosticsCollection?.dispose();
-
-  console.log("✅ Mustache JSON Validator deactivated successfully");
 }
 
 /**
  * Initialize core services
  */
-function initializeServices(context: vscode.ExtensionContext): void {
+async function initializeServices(context: vscode.ExtensionContext): Promise<void> {
   // Create diagnostic collection
-  diagnosticsCollection = vscode.languages.createDiagnosticCollection("mustache-json-validator");
+  diagnosticsCollection = vscode.languages.createDiagnosticCollection("mustache-json");
   context.subscriptions.push(diagnosticsCollection);
 
-  // Initialize services
+  // Initialize configuration manager
+  configManager = ConfigurationManager.getInstance();
+
+  // Initialize validators
   mustacheValidator = new MustacheValidator();
   jsonValidator = new JSONValidator();
+
+  // Initialize providers
   diagnosticsProvider = new DiagnosticsProvider(diagnosticsCollection);
+  context.subscriptions.push(diagnosticsProvider);
+
+  // Initialize services
+  templateEngine = new TemplateEngine();
+  context.subscriptions.push(templateEngine);
 }
 
 /**
- * Get document selector for supported file types
+ * Register event listeners
  */
-function getDocumentSelector(): vscode.DocumentSelector {
-  return [
-    { language: "mustache-json", scheme: "file" },
-    { pattern: "**/*.mustache.json", scheme: "file" },
-    { pattern: "**/*.mst.json", scheme: "file" },
-    { pattern: "**/*.mustache", scheme: "file" },
-  ];
-}
+function registerEventListeners(context: vscode.ExtensionContext): void {
+  // Document change listener for real-time validation
+  const documentChangeListener = vscode.workspace.onDidChangeTextDocument((event) => {
+    handleDocumentChange(event);
+  });
 
-/**
- * Register formatting providers
- */
-function registerFormattingProviders(context: vscode.ExtensionContext, documentSelector: vscode.DocumentSelector): void {
-  const documentFormattingProvider = new MustacheJSONDocumentFormattingProvider();
-  const rangeFormattingProvider = new MustacheJSONDocumentRangeFormattingProvider();
-  const onTypeFormattingProvider = new MustacheJSONOnTypeFormattingProvider();
+  // Document open listener
+  const documentOpenListener = vscode.workspace.onDidOpenTextDocument((document) => {
+    if (isMustacheDocument(document)) {
+      validateDocumentDelayed(document, 100); // Quick validation on open
+    }
+  });
 
-  // Document formatting (Shift+Alt+F)
-  context.subscriptions.push(vscode.languages.registerDocumentFormattingEditProvider(documentSelector, documentFormattingProvider));
+  // Document save listener
+  const documentSaveListener = vscode.workspace.onDidSaveTextDocument((document) => {
+    if (isMustacheDocument(document)) {
+      validateDocument(document); // Immediate validation on save
+    }
+  });
 
-  // Range formatting
-  context.subscriptions.push(vscode.languages.registerDocumentRangeFormattingEditProvider(documentSelector, rangeFormattingProvider));
+  // Document close listener
+  const documentCloseListener = vscode.workspace.onDidCloseTextDocument((document) => {
+    if (isMustacheDocument(document)) {
+      diagnosticsProvider.clearDiagnostics(document.uri);
+      clearValidationTimer(document.uri.toString());
+    }
+  });
 
-  // On-type formatting
+  // Active editor change listener
+  const activeEditorChangeListener = vscode.window.onDidChangeActiveTextEditor((editor) => {
+    if (editor && isMustacheDocument(editor.document)) {
+      validateDocumentDelayed(editor.document, 200);
+    }
+  });
+
+  // Configuration change listener
+  const configChangeListener = configManager.onConfigChanged((config) => {
+    handleConfigurationChange(config);
+  });
+
+  // Add to subscriptions
   context.subscriptions.push(
-    vscode.languages.registerOnTypeFormattingEditProvider(documentSelector, onTypeFormattingProvider, "}", ":", ",")
+    documentChangeListener,
+    documentOpenListener,
+    documentSaveListener,
+    documentCloseListener,
+    activeEditorChangeListener,
+    configChangeListener
   );
 }
 
@@ -118,330 +139,351 @@ function registerFormattingProviders(context: vscode.ExtensionContext, documentS
  * Register extension commands
  */
 function registerCommands(context: vscode.ExtensionContext): void {
-  // Manual validation command
-  const validateCommand = vscode.commands.registerCommand("mustacheJsonValidator.validate", async () => {
+  // Validate command
+  const validateCommand = vscode.commands.registerCommand(COMMANDS.VALIDATE, async () => {
     const activeEditor = vscode.window.activeTextEditor;
-    if (!activeEditor) {
-      vscode.window.showWarningMessage("No active editor found");
-      return;
+    if (activeEditor && isMustacheDocument(activeEditor.document)) {
+      await validateDocument(activeEditor.document);
+      vscode.window.showInformationMessage("✅ Validation complete");
+    } else {
+      vscode.window.showWarningMessage("No Mustache template file is currently active");
     }
-
-    if (!isSupported(activeEditor.document)) {
-      vscode.window.showWarningMessage("Current file is not a supported Mustache JSON template");
-      return;
-    }
-
-    await validateDocument(activeEditor.document);
-    vscode.window.showInformationMessage("Validation complete");
   });
 
-  // Preview generated JSON command
-  const previewCommand = vscode.commands.registerCommand("mustacheJsonValidator.preview", async () => {
+  // Preview JSON command
+  const previewCommand = vscode.commands.registerCommand(COMMANDS.PREVIEW, async () => {
     const activeEditor = vscode.window.activeTextEditor;
-    if (!activeEditor) {
-      vscode.window.showWarningMessage("No active editor found");
-      return;
+    if (activeEditor && isMustacheDocument(activeEditor.document)) {
+      await previewGeneratedJSON(activeEditor.document);
+    } else {
+      vscode.window.showWarningMessage("No Mustache template file is currently active");
     }
-
-    if (!isSupported(activeEditor.document)) {
-      vscode.window.showWarningMessage("Current file is not a supported Mustache JSON template");
-      return;
-    }
-
-    await previewGeneratedJson(activeEditor.document);
   });
 
-  // Format document command
-  const formatCommand = vscode.commands.registerCommand("mustacheJsonValidator.format", async () => {
+  // Format command
+  const formatCommand = vscode.commands.registerCommand(COMMANDS.FORMAT, async () => {
     const activeEditor = vscode.window.activeTextEditor;
-    if (!activeEditor) {
-      vscode.window.showWarningMessage("No active editor found");
-      return;
+    if (activeEditor && isMustacheDocument(activeEditor.document)) {
+      await formatDocument(activeEditor);
+    } else {
+      vscode.window.showWarningMessage("No Mustache template file is currently active");
     }
-
-    if (!isSupported(activeEditor.document)) {
-      vscode.window.showWarningMessage("Current file is not a supported Mustache JSON template");
-      return;
-    }
-
-    await formatActiveDocument(activeEditor);
   });
 
-  // Clear diagnostics command
-  const clearDiagnosticsCommand = vscode.commands.registerCommand("mustacheJsonValidator.clearDiagnostics", () => {
-    diagnosticsProvider.clearAllDiagnostics();
-    vscode.window.showInformationMessage("All diagnostics cleared");
+  // Select context file command
+  const selectContextCommand = vscode.commands.registerCommand(COMMANDS.SELECT_CONTEXT, async () => {
+    await selectContextFile();
   });
 
-  context.subscriptions.push(validateCommand, previewCommand, formatCommand, clearDiagnosticsCommand);
+  // Clear cache command
+  const clearCacheCommand = vscode.commands.registerCommand(COMMANDS.CLEAR_CACHE, async () => {
+    templateEngine.clearCache();
+    vscode.window.showInformationMessage("🗑️ Validation cache cleared");
+  });
+
+  // Toggle real-time validation command
+  const toggleValidationCommand = vscode.commands.registerCommand(COMMANDS.TOGGLE_VALIDATION, async () => {
+    const enabled = await configManager.toggleRealTimeValidation();
+    vscode.window.showInformationMessage(`Real-time validation ${enabled ? "enabled" : "disabled"}`);
+  });
+
+  // Add to subscriptions
+  context.subscriptions.push(
+    validateCommand,
+    previewCommand,
+    formatCommand,
+    selectContextCommand,
+    clearCacheCommand,
+    toggleValidationCommand
+  );
 }
 
 /**
- * Register event listeners
+ * Register language providers
  */
-function registerEventListeners(context: vscode.ExtensionContext): void {
-  // Document change listener with debouncing
-  const onDidChangeTextDocument = vscode.workspace.onDidChangeTextDocument((event) => {
-    if (!isSupported(event.document)) {
-      return;
-    }
+function registerProviders(context: vscode.ExtensionContext): void {
+  // Document selector for Mustache files
+  const documentSelector: vscode.DocumentSelector = [
+    { language: "mustache-json" },
+    { pattern: "**/*.mustache.json" },
+    { pattern: "**/*.mst.json" },
+    { pattern: "**/*.mustache" },
+  ];
 
-    const config = vscode.workspace.getConfiguration("mustacheJsonValidator");
-    if (!config.get<boolean>("enableRealTimeValidation", true)) {
-      return;
-    }
+  // Register formatting providers
+  const documentFormattingProvider = new MustacheJSONDocumentFormattingProvider();
+  const rangeFormattingProvider = new MustacheJSONDocumentRangeFormattingProvider();
+  const onTypeFormattingProvider = new MustacheJSONOnTypeFormattingProvider();
 
-    // Debounce validation to avoid excessive processing
-    const uri = event.document.uri.toString();
-    const existingTimer = validationTimers.get(uri);
-    if (existingTimer) {
-      clearTimeout(existingTimer);
-    }
-
-    const timer = setTimeout(() => {
-      validateDocument(event.document);
-      validationTimers.delete(uri);
-    }, 500);
-
-    validationTimers.set(uri, timer);
-  });
-
-  // Document open listener
-  const onDidOpenTextDocument = vscode.workspace.onDidOpenTextDocument((document) => {
-    if (isSupported(document)) {
-      validateDocument(document);
-    }
-  });
-
-  // Document save listener
-  const onDidSaveTextDocument = vscode.workspace.onDidSaveTextDocument((document) => {
-    if (isSupported(document)) {
-      validateDocument(document);
-    }
-  });
-
-  // Document close listener - clean up diagnostics
-  const onDidCloseTextDocument = vscode.workspace.onDidCloseTextDocument((document) => {
-    if (isSupported(document)) {
-      diagnosticsProvider.clearDiagnostics(document.uri);
-      const uri = document.uri.toString();
-      const timer = validationTimers.get(uri);
-      if (timer) {
-        clearTimeout(timer);
-        validationTimers.delete(uri);
-      }
-    }
-  });
-
-  context.subscriptions.push(onDidChangeTextDocument, onDidOpenTextDocument, onDidSaveTextDocument, onDidCloseTextDocument);
+  context.subscriptions.push(
+    vscode.languages.registerDocumentFormattingEditProvider(documentSelector, documentFormattingProvider),
+    vscode.languages.registerDocumentRangeFormattingEditProvider(documentSelector, rangeFormattingProvider),
+    vscode.languages.registerOnTypeFormattingEditProvider(documentSelector, onTypeFormattingProvider, "}", ":", ",")
+  );
 }
 
 /**
- * Check if document is supported by the extension
+ * Handle document changes
  */
-function isSupported(document: vscode.TextDocument): boolean {
-  const supportedLanguages = ["mustache-json", "mustache"];
-  const supportedExtensions = [".mustache.json", ".mst.json", ".mustache"];
+function handleDocumentChange(event: vscode.TextDocumentChangeEvent): void {
+  const document = event.document;
 
-  return supportedLanguages.includes(document.languageId) || supportedExtensions.some((ext) => document.fileName.endsWith(ext));
+  if (!isMustacheDocument(document)) {
+    return;
+  }
+
+  const config = configManager.getConfig();
+  if (!config.enableRealTimeValidation) {
+    return;
+  }
+
+  // Debounce validation to avoid excessive calls
+  const debounceTime = Math.max(config.debounceTime, 100);
+  validateDocumentDelayed(document, debounceTime);
 }
 
 /**
- * Validate all currently open documents
+ * Validate document with debouncing
  */
-function validateOpenDocuments(): void {
-  vscode.workspace.textDocuments.forEach((document) => {
-    if (isSupported(document)) {
-      validateDocument(document);
-    }
-  });
+function validateDocumentDelayed(document: vscode.TextDocument, delay: number): void {
+  const documentUri = document.uri.toString();
+
+  // Clear existing timer
+  clearValidationTimer(documentUri);
+
+  // Set new timer
+  const timer = setTimeout(() => {
+    validateDocument(document);
+    validationTimers.delete(documentUri);
+  }, delay);
+
+  validationTimers.set(documentUri, timer);
 }
 
 /**
- * Main document validation function
+ * Clear validation timer for document
+ */
+function clearValidationTimer(documentUri: string): void {
+  const timer = validationTimers.get(documentUri);
+  if (timer) {
+    clearTimeout(timer);
+    validationTimers.delete(documentUri);
+  }
+}
+
+/**
+ * Main document validation logic
  */
 async function validateDocument(document: vscode.TextDocument): Promise<void> {
-  const text = document.getText();
+  if (!isMustacheDocument(document)) {
+    return;
+  }
+
   try {
-    // Collect all validation errors first
-    const allErrors: any[] = [];
+    const text = document.getText();
+    const errors: any[] = [];
 
-    // Validate Mustache syntax
-    const mustacheResult = await mustacheValidator.validate(text, document);
-    if (mustacheResult && mustacheResult.errors && Array.isArray(mustacheResult.errors)) {
-      allErrors.push(...mustacheResult.errors);
-    }
+    // Validate Mustache template
+    const mustacheResult = await mustacheValidator.validateWithTiming(text, document);
+    errors.push(...mustacheResult.errors);
 
-    // Validate JSON structure if possible
-    try {
-      const context = await getContextData();
-      // Pass context as a separate parameter, not in options
-      const jsonResult = await jsonValidator.validate(text, document, {
-        allowTrailingComma: false,
-        allowComments: false,
-        validateSchema: false,
-      });
-      if (jsonResult && jsonResult.errors && Array.isArray(jsonResult.errors)) {
-        allErrors.push(...jsonResult.errors);
+    // If Mustache is valid, try to generate and validate JSON
+    const config = configManager.getConfig();
+    if (config.validateJsonOutput && mustacheResult.isValid) {
+      const renderResult = await templateEngine.renderTemplate(text);
+
+      if (renderResult.success && renderResult.output) {
+        const jsonResult = await jsonValidator.validateWithTiming(renderResult.output, document);
+        errors.push(...jsonResult.errors);
+      } else if (renderResult.error) {
+        errors.push({
+          message: `Template rendering failed: ${renderResult.error}`,
+          line: 1,
+          column: 0,
+          severity: "error",
+          source: "template-engine",
+        });
       }
-    } catch (jsonError) {
-      // JSON validation failed - add a validation error for it
-      allErrors.push({
-        message: `JSON structure validation failed: ${jsonError}`,
-        line: 1,
-        column: 0,
-        severity: "warning",
-        code: "json-validation-failed",
-      });
     }
 
-    // Update diagnostics with ValidationError array
-    diagnosticsProvider.updateDiagnostics(document.uri, allErrors);
+    // Update diagnostics
+    diagnosticsProvider.updateDiagnostics(document.uri, errors);
   } catch (error) {
-    console.error("Error validating document:", error);
-    vscode.window.showErrorMessage(`Validation error: ${error}`);
-  }
-}
+    console.error("Validation error:", error);
 
-/**
- * Create VSCode diagnostic from validation error
- */
-function createDiagnostic(document: vscode.TextDocument, error: any): vscode.Diagnostic {
-  let range: vscode.Range;
+    // Show error diagnostic
+    const errorDiagnostic = {
+      message: `Validation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      line: 1,
+      column: 0,
+      severity: "error" as const,
+      source: "mustache-validator",
+    };
 
-  if (error.range) {
-    range = new vscode.Range(error.range.start.line, error.range.start.character, error.range.end.line, error.range.end.character);
-  } else if (error.line !== undefined && error.column !== undefined) {
-    const line = Math.max(0, error.line - 1); // Convert to 0-based
-    const character = Math.max(0, error.column);
-    const endCharacter = character + (error.length || 1);
-    range = new vscode.Range(line, character, line, endCharacter);
-  } else {
-    // Fallback to document start
-    range = new vscode.Range(0, 0, 0, 1);
-  }
-
-  const severity =
-    error.severity === "error"
-      ? vscode.DiagnosticSeverity.Error
-      : error.severity === "warning"
-      ? vscode.DiagnosticSeverity.Warning
-      : error.severity === "info"
-      ? vscode.DiagnosticSeverity.Information
-      : vscode.DiagnosticSeverity.Hint;
-
-  const diagnostic = new vscode.Diagnostic(range, error.message, severity);
-  diagnostic.source = "mustache-json-validator";
-
-  if (error.code) {
-    diagnostic.code = error.code;
-  }
-
-  return diagnostic;
-}
-
-/**
- * Format the active document
- */
-async function formatActiveDocument(activeEditor: vscode.TextEditor): Promise<void> {
-  try {
-    // Use VSCode's built-in formatting command which will call our registered providers
-    await vscode.commands.executeCommand("editor.action.formatDocument");
-    vscode.window.showInformationMessage("Document formatted successfully");
-  } catch (error) {
-    console.error("Formatting error:", error);
-    vscode.window.showErrorMessage(`Formatting error: ${error}`);
+    diagnosticsProvider.updateDiagnostics(document.uri, [errorDiagnostic]);
   }
 }
 
 /**
  * Preview generated JSON
  */
-async function previewGeneratedJson(document: vscode.TextDocument): Promise<void> {
+async function previewGeneratedJSON(document: vscode.TextDocument): Promise<void> {
   try {
     const text = document.getText();
-    const context = await getContextData();
+    const renderResult = await templateEngine.renderTemplate(text);
 
-    // Simple Mustache rendering - in production you'd use a proper template engine
-    let renderedJson = text;
+    if (renderResult.success && renderResult.output) {
+      // Format the JSON output
+      const formattedOutput = templateEngine.formatOutput(renderResult.output, "json");
 
-    // Basic variable substitution (this is a simplified approach)
-    Object.keys(context).forEach((key) => {
-      const regex = new RegExp(`{{\\s*${key}\\s*}}`, "g");
-      const value = typeof context[key] === "string" ? `"${context[key]}"` : JSON.stringify(context[key]);
-      renderedJson = renderedJson.replace(regex, value);
-    });
+      // Create and show preview document
+      const previewDoc = await vscode.workspace.openTextDocument({
+        content: formattedOutput,
+        language: "json",
+      });
 
-    // Parse and format the JSON
-    const parsedJson = JSON.parse(renderedJson);
-    const formattedJson = JSON.stringify(parsedJson, null, 2);
-
-    // Create preview document
-    const previewDoc = await vscode.workspace.openTextDocument({
-      content: formattedJson,
-      language: "json",
-    });
-
-    // Show in new editor column
-    await vscode.window.showTextDocument(previewDoc, {
-      viewColumn: vscode.ViewColumn.Beside,
-      preserveFocus: false,
-    });
-
-    vscode.window.showInformationMessage("JSON preview generated successfully");
+      await vscode.window.showTextDocument(previewDoc, vscode.ViewColumn.Beside);
+    } else {
+      vscode.window.showErrorMessage(`Failed to generate JSON: ${renderResult.error || "Unknown error"}`);
+    }
   } catch (error) {
-    console.error("Preview error:", error);
-    vscode.window.showErrorMessage(`Preview error: ${error}`);
+    vscode.window.showErrorMessage(`Preview failed: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 
 /**
- * Get context data for template rendering
+ * Format document
  */
-async function getContextData(): Promise<any> {
+async function formatDocument(editor: vscode.TextEditor): Promise<void> {
   try {
-    const config = vscode.workspace.getConfiguration("mustacheJsonValidator");
-    const contextFile = config.get<string>("contextFile");
+    // Use VSCode's built-in formatting command which will call our registered providers
+    await vscode.commands.executeCommand("editor.action.formatDocument");
+    vscode.window.showInformationMessage("Document formatted successfully");
+  } catch (error) {
+    vscode.window.showErrorMessage(`Format failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+  }
+}
 
-    if (contextFile) {
-      return await loadContextFile(contextFile);
+/**
+ * Select context file
+ */
+async function selectContextFile(): Promise<void> {
+  try {
+    const options: vscode.OpenDialogOptions = {
+      canSelectMany: false,
+      openLabel: "Select Context File",
+      filters: {
+        "JSON Files": ["json"],
+      },
+    };
+
+    const fileUri = await vscode.window.showOpenDialog(options);
+
+    if (fileUri && fileUri[0]) {
+      await configManager.setContextFile(fileUri[0].fsPath);
+      vscode.window.showInformationMessage(`Context file set: ${fileUri[0].fsPath}`);
+
+      // Clear template engine cache to force re-render with new context
+      templateEngine.clearCache();
+
+      // Re-validate ALL open Mustache documents with new context
+      await validateOpenDocuments();
     }
+  } catch (error) {
+    vscode.window.showErrorMessage(`Failed to select context file: ${error instanceof Error ? error.message : "Unknown error"}`);
+  }
+}
 
-    // Try to find common context files
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (workspaceRoot) {
-      const commonFiles = ["context.json", "data.json", "sample-data.json", "test-data.json"];
+/**
+ * Handle configuration changes
+ */
+function handleConfigurationChange(config: ExtensionConfig): void {
+  // Re-validate all open documents with new configuration
+  if (config.enableRealTimeValidation) {
+    validateOpenDocuments();
+  } else {
+    // Clear all diagnostics if validation is disabled
+    diagnosticsProvider.clearAllDiagnostics();
+  }
+}
 
-      for (const fileName of commonFiles) {
-        try {
-          const filePath = vscode.Uri.joinPath(vscode.Uri.file(workspaceRoot), fileName);
-          const content = await vscode.workspace.fs.readFile(filePath);
-          const text = Buffer.from(content).toString("utf8");
-          return JSON.parse(text);
-        } catch {
-          // File doesn't exist or isn't valid JSON, continue
+/**
+ * Validate all open documents
+ */
+async function validateOpenDocuments(): Promise<void> {
+  const documents = vscode.workspace.textDocuments.filter(isMustacheDocument);
+
+  for (const document of documents) {
+    await validateDocument(document);
+  }
+}
+
+/**
+ * Check if document is a Mustache template
+ */
+function isMustacheDocument(document: vscode.TextDocument): boolean {
+  // Check language ID
+  if (document.languageId === "mustache-json" || document.languageId === "mustache") {
+    return true;
+  }
+
+  // Check file extension
+  const fileName = document.fileName.toLowerCase();
+  if (FILE_EXTENSIONS.some((ext) => fileName.endsWith(ext))) {
+    return true;
+  }
+
+  // Check if it's a regular .mustache file that looks like JSON
+  if (fileName.endsWith(".mustache")) {
+    const text = document.getText().trim();
+    return text.startsWith("{") || text.startsWith("[");
+  }
+
+  return false;
+}
+
+/**
+ * Show welcome message for new users
+ */
+function showWelcomeMessage(context: vscode.ExtensionContext): void {
+  const hasShownWelcome = context.globalState.get("hasShownWelcome", false);
+
+  if (!hasShownWelcome) {
+    vscode.window
+      .showInformationMessage(
+        "🎉 Welcome to Mustache JSON Validator! Open a .mustache.json file to get started.",
+        "Open Settings",
+        "View Examples"
+      )
+      .then((choice) => {
+        if (choice === "Open Settings") {
+          vscode.commands.executeCommand("workbench.action.openSettings", "mustacheJsonValidator");
+        } else if (choice === "View Examples") {
+          // Could open example files or documentation
+          vscode.env.openExternal(vscode.Uri.parse("https://github.com/mustache/mustache"));
         }
-      }
-    }
+      });
 
-    // Return empty context as fallback
-    return {};
-  } catch (error) {
-    console.warn("Failed to load context data, using empty context:", error);
-    return {};
+    context.globalState.update("hasShownWelcome", true);
   }
 }
 
 /**
- * Load context file from specified path
+ * Extension deactivation
  */
-async function loadContextFile(contextFile: string): Promise<any> {
-  try {
-    const uri = vscode.Uri.file(contextFile);
-    const content = await vscode.workspace.fs.readFile(uri);
-    const text = Buffer.from(content).toString("utf8");
-    return JSON.parse(text);
-  } catch (error) {
-    throw new Error(`Failed to load context file ${contextFile}: ${error}`);
+export function deactivate(): void {
+  console.log(`🛑 ${EXTENSION_ID} is deactivating...`);
+
+  // Clear all timers
+  for (const timer of validationTimers.values()) {
+    clearTimeout(timer);
   }
+  validationTimers.clear();
+
+  // Dispose services
+  templateEngine?.dispose();
+  diagnosticsProvider?.dispose();
+  configManager?.dispose();
+
+  console.log(`✅ ${EXTENSION_ID} deactivated successfully`);
 }
