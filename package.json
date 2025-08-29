@@ -2,11 +2,12 @@
   "name": "mustache-json-validator",
   "displayName": "Mustache JSON Validator",
   "description": "Static analysis and validation for Mustache templates generating JSON",
-  "version": "0.1.0",
-  "publisher": "your-publisher-name",
+  "version": "1.0.0",
+  "publisher": "amaankulshreshtha",
   "engines": {
     "vscode": "^1.74.0"
   },
+  "license": "MIT",
   "categories": [
     "Programming Languages",
     "Linters",
@@ -21,12 +22,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/mustache-json-validator.git"
+    "url": "https://github.com/amaankulshreshtha/mustache-json-validator.git"
   },
   "bugs": {
-    "url": "https://github.com/your-username/mustache-json-validator/issues"
+    "url": "https://github.com/amaankulshreshtha/mustache-json-validator/issues"
   },
-  "homepage": "https://github.com/your-username/mustache-json-validator#readme",
+  "homepage": "https://github.com/amaankulshreshtha/mustache-json-validator#readme",
   "activationEvents": [
     "onLanguage:mustache-json",
     "onLanguage:mustache",
