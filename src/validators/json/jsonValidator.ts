@@ -39,9 +39,8 @@ export class JSONValidator extends BaseValidator {
         const structureErrors = this.validateJSONStructure(text);
         errors.push(...structureErrors);
 
-        // Check for duplicate keys
-        const duplicateErrors = this.validateDuplicateKeys(text);
-        errors.push(...duplicateErrors);
+        // Skip duplicate key validation for Mustache-generated JSON
+        // (array items naturally have same property names)
 
         // Schema validation if requested
         if (options?.validateSchema && options.schemaUri) {
@@ -86,9 +85,6 @@ export class JSONValidator extends BaseValidator {
       if (syntaxErrors.filter((e) => e.severity === "error").length === 0) {
         // Structure validation
         errors.push(...this.validateJSONStructure(text));
-
-        // Duplicate key validation
-        errors.push(...this.validateDuplicateKeys(text));
       }
 
       return this.sortErrors(errors);
@@ -133,82 +129,13 @@ export class JSONValidator extends BaseValidator {
   }
 
   /**
-   * Check for duplicate keys in JSON objects
+   * Check for duplicate keys in JSON objects (disabled for Mustache templates)
    */
   private validateDuplicateKeys(text: string): ValidationError[] {
-    const errors: ValidationError[] = [];
-    const duplicates = this.findDuplicateKeys(text);
-
-    for (const duplicate of duplicates) {
-      // Report each occurrence after the first
-      for (let i = 1; i < duplicate.occurrences.length; i++) {
-        const occurrence = duplicate.occurrences[i];
-        errors.push(
-          this.createValidationError(
-            `Duplicate JSON key: "${duplicate.key}"`,
-            occurrence.line,
-            occurrence.column,
-            "error",
-            duplicate.key.length + 2, // Include quotes
-            ERROR_CODES.DUPLICATE_KEY
-          )
-        );
-      }
-
-      // Add info about the first occurrence
-      if (duplicate.occurrences.length > 1) {
-        const first = duplicate.occurrences[0];
-        errors.push(
-          this.createValidationError(
-            `First occurrence of duplicate key "${duplicate.key}"`,
-            first.line,
-            first.column,
-            "info",
-            duplicate.key.length + 2,
-            ERROR_CODES.DUPLICATE_KEY
-          )
-        );
-      }
-    }
-
-    return errors;
-  }
-
-  /**
-   * Find duplicate keys in JSON text
-   */
-  private findDuplicateKeys(text: string): DuplicateKey[] {
-    const duplicates: DuplicateKey[] = [];
-    const lines = text.split("\n");
-    const keyOccurrences = new Map<string, Array<{ line: number; column: number }>>();
-
-    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-      const line = lines[lineIndex];
-      const lineNumber = lineIndex + 1;
-
-      // Find JSON property keys
-      let match;
-      const keyPattern = new RegExp(JSON_PATTERNS.PROPERTY_KEY.source, "g");
-      while ((match = keyPattern.exec(line)) !== null) {
-        const key = match[1];
-        const column = match.index;
-
-        if (!keyOccurrences.has(key)) {
-          keyOccurrences.set(key, []);
-        }
-
-        keyOccurrences.get(key)!.push({ line: lineNumber, column });
-      }
-    }
-
-    // Find keys with multiple occurrences
-    for (const [key, occurrences] of keyOccurrences.entries()) {
-      if (occurrences.length > 1) {
-        duplicates.push({ key, occurrences });
-      }
-    }
-
-    return duplicates;
+    // Skip duplicate key validation for Mustache-generated JSON
+    // because array items with same structure will always have "duplicate" keys
+    // which is perfectly valid JSON
+    return [];
   }
 
   /**

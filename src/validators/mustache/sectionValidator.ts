@@ -147,19 +147,22 @@ export class MustacheSectionValidator extends BaseValidator {
           );
         }
 
-        // Check for same-name nesting (potentially problematic)
+        // Check for same-name nesting (but only if they're actually nested, not just inline conditions)
         const sameNameParent = sectionStack.find((s) => s.section.name === section.name);
         if (sameNameParent) {
-          errors.push(
-            this.createValidationError(
-              `Nested section with same name "${section.name}" may cause confusion`,
-              section.startLine,
-              section.startColumn,
-              "warning",
-              section.length,
-              ERROR_CODES.NESTED_SECTIONS
-            )
-          );
+          // Only warn if they're on different lines (actually nested, not inline)
+          if (sameNameParent.section.startLine !== section.startLine) {
+            errors.push(
+              this.createValidationError(
+                `Nested section with same name "${section.name}" may cause confusion`,
+                section.startLine,
+                section.startColumn,
+                "hint", // Changed from warning to hint
+                section.length,
+                ERROR_CODES.NESTED_SECTIONS
+              )
+            );
+          }
         }
 
         sectionStack.push({
