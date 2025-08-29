@@ -1,6 +1,6 @@
 {
   "users": [
-{{#users}}
+    {{#users}}
     {
       "id": {{id}},
       "name": "{{name}}",
@@ -9,7 +9,7 @@
       "age": {{profile.age}},
       "location": "{{profile.location}}"
     }{{#comma}},{{/comma}}
-{{/users}}
+    {{/users}}
   ],
   "metadata": {
     "total": {{totalUsers}},
